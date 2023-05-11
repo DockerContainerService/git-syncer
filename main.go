@@ -11,10 +11,12 @@ var (
 	configFile, privateKeyFile string
 	retries, routineNum        int
 	debug                      bool
+	version                    = "1.0.0"
 )
 
 var rootCmd = &cobra.Command{
-	Use: "git-syncer [flags]",
+	Use:     "git-syncer [flags]",
+	Version: version,
 	Run: func(cmd *cobra.Command, args []string) {
 		if debug {
 			logrus.SetLevel(logrus.DebugLevel)
