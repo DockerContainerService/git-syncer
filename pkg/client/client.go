@@ -80,7 +80,7 @@ func (c *Client) Run() {
 				err := t.Run()
 				if err != nil {
 					logrus.Debugf("Run task %s %s => %s err: %v", t.GetTitle(), t.GetSrcRepo(), t.GetDstRepo(), err)
-					if num == c.retries-1 {
+					if num == c.retries {
 						t.SetError(err)
 						c.failedTaskList.Push(t)
 						logrus.Errorf("Run task %s %s => %s err: %v", t.GetTitle(), t.GetSrcRepo(), t.GetDstRepo(), err)
