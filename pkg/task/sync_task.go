@@ -93,6 +93,7 @@ func (t *SyncTask) Run() (err error) {
 	})
 
 	if errors.Is(err, git.NoErrAlreadyUpToDate) {
+		logrus.Warnf("%s is up to date", t.dstRepo)
 		err = nil
 	}
 	return
