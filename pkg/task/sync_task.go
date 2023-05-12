@@ -42,10 +42,11 @@ func NewMigrationTask(srcRepo, dstRepo, privateKeyFile string) *SyncTask {
 
 func (t *SyncTask) Run() (err error) {
 	// 克隆到临时目录
-	srcAuth, err := getAuth(t.srcRepo, t.privateKeyFile)
+	srcAuth, repoUrl, err := getAuth(t.srcRepo, t.privateKeyFile)
 	if err != nil {
 		return
 	}
+	t.srcRepo = repoUrl
 
 	var dot billy.Filesystem
 	dirName := fmt.Sprintf("/tmp/%s", filepath.Base(t.srcRepo))
@@ -65,7 +66,7 @@ func (t *SyncTask) Run() (err error) {
 	dot = osfs.New(dirName)
 
 	repo, err := git.Clone(filesystem.NewStorage(dot, cache.NewObjectLRUDefault()), nil, &git.CloneOptions{
-		URL:    t.srcRepo,
+		URL:    repoUrl,
 		Mirror: true,
 		Auth:   srcAuth,
 	})
@@ -74,13 +75,14 @@ func (t *SyncTask) Run() (err error) {
 	}
 
 	// 推送到目标仓库
-	dstAuth, err := getAuth(t.dstRepo, t.privateKeyFile)
+	dstAuth, repoUrl, err := getAuth(t.dstRepo, t.privateKeyFile)
 	if err != nil {
 		return
 	}
+	t.dstRepo = repoUrl
 
 	err = repo.Push(&git.PushOptions{
-		RemoteURL: t.dstRepo,
+		RemoteURL: repoUrl,
 		Auth:      dstAuth,
 		Force:     true,
 		RefSpecs: []config.RefSpec{
@@ -116,30 +118,45 @@ func (t *SyncTask) GetError() error {
 	return t.err
 }
 
-func getAuth(repo, privateKeyFile string) (auth transport.AuthMethod, err error) {
+func getAuth(repo, privateKeyFile string) (auth transport.AuthMethod, repoUrl string, err error) {
+	repoUrl = repo
 	if strings.HasPrefix(repo, "git") {
 		if privateKeyFile == "" {
 			u, err := user.Current()
 			if err != nil {
-				return auth, err
+				return auth, repoUrl, err
 			}
 			privateKeyFile = fmt.Sprintf("%s/.ssh/id_rsa", u.HomeDir)
 		}
 
 		_, err = os.Stat(privateKeyFile)
 		if err != nil {
-			return auth, err
+			return auth, repoUrl, err
 		}
 		auth, err = ssh.NewPublicKeysFromFile("git", privateKeyFile, "")
 	} else if strings.HasPrefix(repo, "http") {
 		if strings.Contains(repo, "@") {
 			fields := strings.Split(repo, "@")
-			username := strings.Join(fields[0:len(fields)-1], "@")
-			password := fields[len(fields)-1]
+			userInfo := strings.Join(fields[0:len(fields)-1], "@")
+			repoInfo := fields[len(fields)-1]
+
+			if strings.HasPrefix(userInfo, "http://") {
+				userInfo = strings.ReplaceAll(userInfo, "http://", "")
+				repoUrl = fmt.Sprintf("%s%s", "http://", repoInfo)
+			} else if strings.HasPrefix(userInfo, "https://") {
+				userInfo = strings.ReplaceAll(userInfo, "https://", "")
+				repoUrl = fmt.Sprintf("%s%s", "https://", repoInfo)
+			}
+
+			fields = strings.Split(userInfo, ":")
+			username := fields[0]
+			password := strings.Join(fields[1:], ":")
+
 			auth = &http.BasicAuth{
 				Username: username,
 				Password: password,
 			}
+			logrus.Debugf("http auth: username: %s, password: %s, repoUrl: %s", username, password, repoUrl)
 		} else {
 			auth = nil
 		}
