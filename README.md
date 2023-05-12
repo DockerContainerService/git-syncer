@@ -13,6 +13,7 @@
 
 
 ## Usage
+目标仓库可以不存在，但是存在的仓库必须关闭分支保护或者将分支保护配置为允许强制推送
 ### Install git-syncer
 you can download the latest binary release [here](https://github.com/DockerContainerService/git-syncer/releases)
 
